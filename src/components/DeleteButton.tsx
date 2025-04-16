@@ -1,4 +1,4 @@
-// src/components/DeleteButton.tsx
+
 import React from "react";
 
 type DeleteButtonProps = {

@@ -1,4 +1,4 @@
-// src/pages/Home.tsx
+
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
