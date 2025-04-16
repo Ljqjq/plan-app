@@ -9,10 +9,8 @@ import Home from "./pages/Home";
 function App() {
   return (
     <Routes>
-      <Route
-        path="/login"
-        element={<Login />}
-      />
+      <Route path="/login" element={<Login />} />
+      
       <Route
         path="/"
         element={
@@ -23,6 +21,7 @@ function App() {
           </PrivateRoute>
         }
       />
+      
       <Route
         path="/todo"
         element={
@@ -33,6 +32,9 @@ function App() {
           </PrivateRoute>
         }
       />
+
+      {/* Fallback route for unmatched paths */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

@@ -15,12 +15,18 @@ const Home: React.FC<HomeProps> = ({ children }) => {
 
   const handleSignOut = async () => {
     try {
+      if (!auth.currentUser) {
+        console.warn("No user is currently signed in.");
+        navigate("/login"); 
+        return;
+      }
       await signOut(auth);
-      navigate("/login"); // Redirect to login after sign off
+      navigate("/login"); // Redirect after successful sign out
     } catch (error) {
       console.error("Error signing out:", error);
     }
   };
+  
 
   return (
     <div className="min-h-screen bg-gray-100">
