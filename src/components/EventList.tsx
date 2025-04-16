@@ -20,11 +20,23 @@ type TEvent = {
   state: "regular" | "necessary" | "urgent";
 };
 
+// Helper function that converts an ISO datetime string to a
+// format compatible with <input type="datetime-local">
+const formatDateTimeLocal = (isoString: string): string => {
+  const date = new Date(isoString);
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, "0");
+  const hours = date.getHours().toString().padStart(2, "0");
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 export const EventList = () => {
   const { user, loading } = useAuth();
   const [aEvents, setEvents] = useState<TEvent[]>([]);
   
-  // Filter state: title (string) and status with an "all" option.
+  // Filter state: title and status with an "all" option.
   const [filterTitle, setFilterTitle] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "regular" | "necessary" | "urgent">("all");
 
@@ -33,6 +45,7 @@ export const EventList = () => {
   const [editingTitle, setEditingTitle] = useState("");
   const [editingDescription, setEditingDescription] = useState("");
   const [editingState, setEditingState] = useState<TEvent["state"]>("regular");
+  const [editingDatetime, setEditingDatetime] = useState("");
 
   useEffect(() => {
     // Clear events if there is no logged-in user.
@@ -56,7 +69,7 @@ export const EventList = () => {
             title: eventData.title || "",
             description: eventData.description || "",
             datetime: eventData.datetime || new Date().toISOString(),
-            state: eventData.state || "regular", // default value if missing
+            state: eventData.state || "regular",
           } as TEvent;
         });
         setEvents(data);
@@ -79,19 +92,24 @@ export const EventList = () => {
     }
   };
 
+  // When editing is started, load the event data into the editing states.
   const handleEdit = (event: TEvent) => {
     setEditingId(event.id);
     setEditingTitle(event.title);
     setEditingDescription(event.description);
     setEditingState(event.state);
+    setEditingDatetime(formatDateTimeLocal(event.datetime));
   };
 
+  // Update the event with the edited values, including the new datetime.
   const handleUpdate = async (eventId: string) => {
     try {
       await updateDoc(doc(db, "events", eventId), {
         title: editingTitle,
         description: editingDescription,
         state: editingState,
+        // Convert the datetime-local string back to an ISO string.
+        datetime: new Date(editingDatetime).toISOString(),
       });
       setEditingId(null);
       alert("Event updated successfully!");
@@ -105,8 +123,8 @@ export const EventList = () => {
     return <div>Loading...</div>;
   }
 
-  // Filtering logic: If filterStatus is not "all", the event must match that state.
-  // Also, check if the event title (lowercase) includes the filter text.
+  // Filtering logic: if filterStatus is not "all", the event must match that state.
+  // Also, check if the event title includes the filter text.
   const filteredEvents = aEvents.filter((event) => {
     const titleMatches = event.title.toLowerCase().includes(filterTitle.toLowerCase());
     const statusMatches = filterStatus === "all" ? true : event.state === filterStatus;
@@ -174,6 +192,13 @@ export const EventList = () => {
                     value={editingDescription}
                     onChange={(e) => setEditingDescription(e.target.value)}
                     placeholder="Event Description"
+                  />
+                  {/* New input for editing datetime */}
+                  <input
+                    type="datetime-local"
+                    className="w-full p-2 border rounded mb-2"
+                    value={editingDatetime}
+                    onChange={(e) => setEditingDatetime(e.target.value)}
                   />
                   <select
                     className="w-full p-2 border rounded mb-2"
