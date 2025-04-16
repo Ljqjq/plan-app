@@ -1,34 +1,49 @@
-// Example: EventCalendarView.tsx (with events fetched here)
+// src/components/EventCalendarView.tsx
 import React, { useState, useEffect } from "react";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { EventList, TEvent } from "./EventList"; // Ensure TEvent export from EventList
+import { EventList, TEvent } from "./EventList";
+import { useAuth } from "../hooks/useAuth";
 
 const EventCalendarView: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const { user, loading } = useAuth();
   const [events, setEvents] = useState<TEvent[]>([]);
 
-  // Assume you are fetching events in this component (replace with your own auth logic)
   useEffect(() => {
-    // Replace with your user uid condition if needed:
-    const eventsQuery = query(collection(db, "events") /*, where("userId", "==", uid) */);
-    const unsubscribe = onSnapshot(eventsQuery, (snapshot) => {
-      const fetchedEvents = snapshot.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          title: data.title || "",
-          description: data.description || "",
-          datetime: data.datetime || new Date().toISOString(),
-          state: data.state || "regular",
-        } as TEvent;
-      });
-      setEvents(fetchedEvents);
-    });
+    if (!user) {
+      setEvents([]);
+      return;
+    }
+    // Only fetch events that belong to the authenticated user.
+    const eventsQuery = query(
+      collection(db, "events"),
+      where("userId", "==", user.uid)
+    );
+    const unsubscribe = onSnapshot(
+      eventsQuery,
+      (snapshot) => {
+        const fetchedEvents = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            title: data.title || "",
+            description: data.description || "",
+            datetime: data.datetime || new Date().toISOString(),
+            state: data.state || "regular",
+          } as TEvent;
+        });
+        // Set your local events state
+        setEvents(fetchedEvents);
+      },
+      (error) => {
+        console.error("Error fetching events:", error);
+      }
+    );
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   return (
     <div className="w-full bg-gray-100 min-h-screen">
@@ -66,8 +81,9 @@ const EventCalendarView: React.FC = () => {
           />
         </div>
 
-        {/* Right Bar: EventList (passing selectedDate, and optionally, events if needed) */}
+        {/* Right Bar: Event List for the selected day */}
         <div className="w-full lg:w-2/3 p-4 border-l border-gray-300">
+          {/* Pass selectedDate to filter the EventList */}
           <EventList selectedDate={selectedDate} />
         </div>
       </div>
