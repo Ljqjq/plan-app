@@ -11,8 +11,9 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { useAuth } from "../hooks/useAuth";
+import DeleteButton from "./DeleteButton";
 
-type TEvent = {
+export type TEvent = {
   id: string;
   title: string;
   description: string;
@@ -20,8 +21,8 @@ type TEvent = {
   state: "regular" | "necessary" | "urgent";
 };
 
-// Helper function that converts an ISO datetime string to a
-// format compatible with <input type="datetime-local">
+// Helper function to convert an ISO datetime string 
+// to the format required by <input type="datetime-local">
 const formatDateTimeLocal = (isoString: string): string => {
   const date = new Date(isoString);
   const year = date.getFullYear();
@@ -32,33 +33,42 @@ const formatDateTimeLocal = (isoString: string): string => {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
-export const EventList = () => {
+// Helper that returns the Tailwind class for the border color
+const getBorderColorClass = (state: TEvent["state"]): string => {
+  if (state === "urgent") return "border-red-500";
+  if (state === "necessary") return "border-yellow-500";
+  return "border-green-500"; // For "regular"
+};
+
+type EventListProps = {
+  selectedDate?: Date; // Optional: if provided, the list shows only events on that date.
+};
+
+export const EventList: React.FC<EventListProps> = ({ selectedDate }) => {
   const { user, loading } = useAuth();
   const [aEvents, setEvents] = useState<TEvent[]>([]);
   
-  // Filter state: title and status with an "all" option.
+  // Filter states for title and status (only used when displaying all events)
   const [filterTitle, setFilterTitle] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "regular" | "necessary" | "urgent">("all");
 
-  // Editing state
+  // Inline editing states
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [editingDescription, setEditingDescription] = useState("");
   const [editingState, setEditingState] = useState<TEvent["state"]>("regular");
   const [editingDatetime, setEditingDatetime] = useState("");
 
+  // Subscribe to events from Firebase for the current user
   useEffect(() => {
-    // Clear events if there is no logged-in user.
     if (!user) {
       setEvents([]);
       return;
     }
-
     const eventsQuery = query(
       collection(db, "events"),
       where("userId", "==", user.uid)
     );
-
     const unsubscribe = onSnapshot(
       eventsQuery,
       (snapshot) => {
@@ -78,9 +88,30 @@ export const EventList = () => {
         console.error("Error fetching events:", error);
       }
     );
-
     return () => unsubscribe();
   }, [user]);
+
+  // If a selectedDate prop is passed, filter based on that date;
+  // otherwise, show all events and later filter by title/status.
+  const eventsToFilter = selectedDate
+    ? aEvents.filter((ev) => {
+        const evDate = new Date(ev.datetime);
+        return (
+          evDate.getFullYear() === selectedDate.getFullYear() &&
+          evDate.getMonth() === selectedDate.getMonth() &&
+          evDate.getDate() === selectedDate.getDate()
+        );
+      })
+    : aEvents;
+
+  // If displaying all events, further apply title and status filters.
+  const filteredEvents = !selectedDate
+    ? eventsToFilter.filter((ev) => {
+        const titleMatches = ev.title.toLowerCase().includes(filterTitle.toLowerCase());
+        const statusMatches = filterStatus === "all" ? true : ev.state === filterStatus;
+        return titleMatches && statusMatches;
+      })
+    : eventsToFilter;
 
   const handleDelete = async (eventId: string) => {
     try {
@@ -92,7 +123,6 @@ export const EventList = () => {
     }
   };
 
-  // When editing is started, load the event data into the editing states.
   const handleEdit = (event: TEvent) => {
     setEditingId(event.id);
     setEditingTitle(event.title);
@@ -101,14 +131,12 @@ export const EventList = () => {
     setEditingDatetime(formatDateTimeLocal(event.datetime));
   };
 
-  // Update the event with the edited values, including the new datetime.
   const handleUpdate = async (eventId: string) => {
     try {
       await updateDoc(doc(db, "events", eventId), {
         title: editingTitle,
         description: editingDescription,
         state: editingState,
-        // Convert the datetime-local string back to an ISO string.
         datetime: new Date(editingDatetime).toISOString(),
       });
       setEditingId(null);
@@ -123,55 +151,55 @@ export const EventList = () => {
     return <div>Loading...</div>;
   }
 
-  // Filtering logic: if filterStatus is not "all", the event must match that state.
-  // Also, check if the event title includes the filter text.
-  const filteredEvents = aEvents.filter((event) => {
-    const titleMatches = event.title.toLowerCase().includes(filterTitle.toLowerCase());
-    const statusMatches = filterStatus === "all" ? true : event.state === filterStatus;
-    return titleMatches && statusMatches;
-  });
-
   return (
     <div className="bg-white p-4 rounded-xl shadow-md w-full max-w-md mx-auto mt-6">
-      <h2 className="text-xl font-bold mb-4">My Events</h2>
+      <h2 className="text-xl font-bold mb-4">
+        {selectedDate ? `Events on ${selectedDate.toDateString()}` : "My Events"}
+      </h2>
 
-      {/* Filter Controls */}
-      <div className="mb-4 space-y-2">
-        <label className="block">
-          Search by Title:
-          <input
-            type="text"
-            placeholder="Enter title..."
-            value={filterTitle}
-            onChange={(e) => setFilterTitle(e.target.value)}
-            className="w-full p-2 border rounded mt-1"
-          />
-        </label>
-        <label className="block">
-          Filter by Status:
-          <select
-            value={filterStatus}
-            onChange={(e) =>
-              setFilterStatus(e.target.value as "all" | "regular" | "necessary" | "urgent")
-            }
-            className="w-full p-2 border rounded mt-1"
-          >
-            <option value="all">All</option>
-            <option value="regular">Regular</option>
-            <option value="necessary">Necessary</option>
-            <option value="urgent">Urgent</option>
-          </select>
-        </label>
-      </div>
+      {/* Show filter controls only if no specific date is passed */}
+      {!selectedDate && (
+        <div className="mb-4 space-y-2">
+          <label className="block">
+            Search by Title:
+            <input
+              type="text"
+              placeholder="Enter title..."
+              value={filterTitle}
+              onChange={(e) => setFilterTitle(e.target.value)}
+              className="w-full p-2 border rounded mt-1"
+            />
+          </label>
+          <label className="block">
+            Filter by Status:
+            <select
+              value={filterStatus}
+              onChange={(e) =>
+                setFilterStatus(e.target.value as "all" | "regular" | "necessary" | "urgent")
+              }
+              className="w-full p-2 border rounded mt-1"
+            >
+              <option value="all">All</option>
+              <option value="regular">Regular</option>
+              <option value="necessary">Necessary</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </label>
+        </div>
+      )}
 
       {filteredEvents.length === 0 ? (
-        <p className="text-gray-500">No events match your filters.</p>
+        <p className="text-gray-500">
+          {selectedDate ? "No events scheduled for this day." : "No events match your filters."}
+        </p>
       ) : (
         <ul className="space-y-2">
           {filteredEvents.map((ev) => (
             <li
               key={ev.id}
-              className="border rounded p-3 shadow-sm hover:shadow-md transition"
+              className={`border-l-4 p-3 bg-white shadow-sm hover:shadow-md transition ${getBorderColorClass(
+                ev.state
+              )}`}
             >
               {editingId === ev.id ? (
                 <form
@@ -193,7 +221,6 @@ export const EventList = () => {
                     onChange={(e) => setEditingDescription(e.target.value)}
                     placeholder="Event Description"
                   />
-                  {/* New input for editing datetime */}
                   <input
                     type="datetime-local"
                     className="w-full p-2 border rounded mb-2"
@@ -220,8 +247,8 @@ export const EventList = () => {
                     </button>
                     <button
                       type="button"
-                      className="bg-gray-500 text-white px-2 py-1 rounded"
                       onClick={() => setEditingId(null)}
+                      className="bg-gray-500 text-white px-2 py-1 rounded"
                     >
                       Cancel
                     </button>
@@ -244,12 +271,7 @@ export const EventList = () => {
                     >
                       Edit
                     </button>
-                    <button
-                      onClick={() => handleDelete(ev.id)}
-                      className="bg-red-500 text-white px-2 py-1 rounded"
-                    >
-                      Delete
-                    </button>
+                    <DeleteButton onClick={() => handleDelete(ev.id)} />
                   </div>
                 </>
               )}
